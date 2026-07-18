@@ -93,3 +93,6 @@ out/
 
 # Mock data
 mobile-app/data
+
+# Testing script
+script.ts

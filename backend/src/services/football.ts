@@ -11,6 +11,7 @@ const ALLOWED_LEAGUES = [
     'Bundesliga',
     'UEFA Champions League',
     'International Friendly',
+    'International Club Friendly',
     'World Cup'
 ].map(league => league.toLowerCase());
 
@@ -63,9 +64,14 @@ class FootballService {
             let page = 1;
             let hasMore = true;
             let consecutiveErrors = 0;
+            const maxAllowedErrors = await apiRotator.getAvailableKeyCount();
 
             while (hasMore) {
-                if (consecutiveErrors >= apiRotator.getKeyCount()) {
+                if (!activeKey) {
+                    logger.error("🛑 Hard stopping page loop: No operational API keys remaining.");
+                    break;
+                }
+                if (consecutiveErrors >= maxAllowedErrors) {
                     logger.error("🚨 All available keys failed consecutively. Hard stopping page loop.");
                     break;
                 }
