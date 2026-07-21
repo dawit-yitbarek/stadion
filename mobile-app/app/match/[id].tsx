@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, BackHandler, ScrollView, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { VideoRef } from 'react-native-video';
@@ -12,6 +12,7 @@ import { MatchListSection } from '@/components/dashboard/MatchListSection';
 
 export default function LiveMatchStreamScreen() {
   const router = useRouter();
+  const isNavigating = useRef(false);
   const { id } = useLocalSearchParams();
   const { matches, scheduledMatchIds, setScheduledMatchIds, getLiveMatches, getUpcomingMatches } = useMatches();
 
@@ -81,9 +82,9 @@ export default function LiveMatchStreamScreen() {
     );
   }
 
-  const servers = match.servers.map(server => ({
+  const servers = match.servers.map((server, index) => ({
     ...server,
-    name: server.name.replace('Server', 'Channel')
+    name: `Channel ${index + 1}`
   }));
 
   const videoRef = useRef<VideoRef>(null);
@@ -137,9 +138,14 @@ export default function LiveMatchStreamScreen() {
     startControlsTimeout();
   };
 
-  const openMatch = (matchId: string) => {
+  const openMatch = useCallback((matchId: string) => {
+    if (isNavigating.current) return;
+    isNavigating.current = true;
     router.push({ pathname: '/match/[id]', params: { id: matchId } });
-  };
+    setTimeout(() => {
+      isNavigating.current = false;
+    }, 500);
+  }, [router])
 
   useEffect(() => {
     if (servers && servers.length > 0) {
@@ -198,7 +204,7 @@ export default function LiveMatchStreamScreen() {
         />
       )}
 
-      <ScrollView contentContainerClassName="px-6">
+      <ScrollView contentContainerClassName="px-6 py-6">
         <MatchListSection
           matches={sortedMatches}
           notifiedIds={scheduledMatchIds}

@@ -7,9 +7,8 @@ data/
 # local build and cache outputs
 .expo/
 .vscode/
-
-# local environment file
-.env
+dist/
+build/
 
 # Native Directories
 android/

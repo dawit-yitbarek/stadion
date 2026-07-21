@@ -13,7 +13,6 @@ export function ChannelSelector({ servers, activeServerIndex, onServerChange }: 
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        className="mb-6"
         contentContainerStyle={{
           flexDirection: 'row',
           gap: 10,
@@ -31,6 +30,7 @@ export function ChannelSelector({ servers, activeServerIndex, onServerChange }: 
                 : 'border-border bg-surface active:bg-surface-elevated'
                 }`}
               onPress={() => onServerChange(index)}
+              disabled={active}
             >
               <Text className={`text-md font-semibold ${active ? 'text-neon' : 'text-muted'}`}>
                 {server.name}

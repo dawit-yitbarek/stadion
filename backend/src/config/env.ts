@@ -8,7 +8,6 @@ interface EnvConfig {
     REDIS_URL: string;
     API_KEYS: string[];
     NODE_ENV: 'development' | 'production' | 'test';
-    BACKEND_URL: string;
 }
 
 const getEnvConfig = (): EnvConfig => {
@@ -16,7 +15,6 @@ const getEnvConfig = (): EnvConfig => {
     const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
     const rawKeys = process.env.FOOTBALL_API_KEYS || '';
     const nodeEnv = process.env.NODE_ENV;
-    const backendUrl = process.env.BACKEND_URL || `http://localhost:${port}`;
 
     // Split comma-separated keys and clean them up
     const apiKeys = rawKeys
@@ -34,8 +32,7 @@ const getEnvConfig = (): EnvConfig => {
         PORT: port,
         REDIS_URL: redisUrl,
         API_KEYS: apiKeys,
-        NODE_ENV: nodeEnv === 'production' ? 'production' : nodeEnv === 'test' ? 'test' : 'development',
-        BACKEND_URL: backendUrl,
+        NODE_ENV: nodeEnv === 'production' ? 'production' : nodeEnv === 'test' ? 'test' : 'development'
     };
 };
 

@@ -12,7 +12,10 @@ const ALLOWED_LEAGUES = [
     'UEFA Champions League',
     'International Friendly',
     'International Club Friendly',
-    'World Cup'
+    'Fifa World Cup',
+    'UEFA Champions League Qualifiers',
+    'UEFA Europa Conference League',
+    'UEFA Europa League'
 ].map(league => league.toLowerCase());
 
 export interface ApiMatch {
@@ -144,16 +147,67 @@ class FootballService {
                 }
             }
 
+            // Retrieve current Redis cache
+            const existingCacheRaw = await redisClient.get('matches:today');
+            const existingMatches: ApiMatch[] = existingCacheRaw ? JSON.parse(existingCacheRaw) : [];
 
-            // Save updated array to Redis
+            // Purge matches older than 2.5 hours
+            const currentTimeSeconds = Math.floor(Date.now() / 1000);
+            const EXPIRATION_WINDOW_SECONDS = 2.5 * 60 * 60;
+
+            const activeCachedMatches = existingMatches.filter((match) => {
+                const matchEndTime = Number(match.match_time) + EXPIRATION_WINDOW_SECONDS;
+                return matchEndTime >= currentTimeSeconds;
+            });
+
+            // Merge freshly verified matches with active cached matches
+            const matchMap = new Map<string, ApiMatch>();
+
+            // Seed map with existing cached matches
+            for (const match of activeCachedMatches) {
+                if (match.id) {
+                    matchMap.set(match.id, match);
+                }
+            }
+
+
+            // Merge freshly fetched matches
+            for (const freshMatch of matchesWithValidServers) {
+                if (!freshMatch.id) continue;
+
+                if (matchMap.has(freshMatch.id)) {
+                    const existingMatch = matchMap.get(freshMatch.id)!;
+
+                    // De-duplicate servers by URL
+                    const mergedServers = [...existingMatch.servers];
+                    for (const freshServer of freshMatch.servers) {
+                        const exists = mergedServers.some(s => s.url === freshServer.url);
+                        if (!exists) {
+                            mergedServers.push(freshServer);
+                        }
+                    }
+
+                    matchMap.set(freshMatch.id, {
+                        ...freshMatch, // Updates team scores and metadata
+                        servers: mergedServers // Retains verified existing servers + new ones
+                    });
+                } else {
+                    // New match entry
+                    matchMap.set(freshMatch.id, freshMatch);
+                }
+            }
+
+            const mergedMatchesList = Array.from(matchMap.values());
+
+            // Persist updated dataset back to Redis
             await redisClient.set(
                 'matches:today',
-                JSON.stringify([...matchesWithValidServers, ...matchesWithNoValidServers]),
+                JSON.stringify(mergedMatchesList),
                 { EX: 86400 }
             );
 
-            logger.info(`⚡ Flat Cache Sync Complete: Saved games ${matchesWithValidServers.length} with servers and ${matchesWithNoValidServers.length} without servers to Redis.`);
-            return [...matchesWithValidServers, ...matchesWithNoValidServers];
+            logger.info(`⚡ Merge Sync Complete: Saved ${mergedMatchesList.length} active matches to Redis.`);
+            return mergedMatchesList;
         } catch (error: any) {
             logger.error(`❌ Error during syncMatchesCache routine: ${error.message || error}`);
             const existingCache = await redisClient.get('matches:today');

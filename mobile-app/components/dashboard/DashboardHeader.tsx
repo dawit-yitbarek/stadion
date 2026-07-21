@@ -1,5 +1,5 @@
 import { FontAwesome } from '@expo/vector-icons';
-import { Text, View, TouchableOpacity, Linking, Alert } from 'react-native';
+import { Text, View, TouchableOpacity } from 'react-native';
 import { Image } from 'react-native';
 import { ExternalLink } from '../ExternalLink';
 import appLogo from '@/assets/images/433-logo.png';
@@ -10,7 +10,7 @@ interface DashboardHeaderProps {
 
 export function DashboardHeader({ onRefresh }: DashboardHeaderProps) {
   return (
-    <View className="mb-5 flex-row items-center justify-between">
+    <View className="mb-5 px-4 flex-row items-center justify-between">
       <View className="flex-row items-center gap-3">
         <View className="h-14 w-14 items-center justify-center rounded-full border border-cyan/30 bg-surface-elevated">
           <Image
@@ -23,7 +23,7 @@ export function DashboardHeader({ onRefresh }: DashboardHeaderProps) {
           <Text className="text-xs text-muted">Ethiopia</Text>
         </View>
       </View>
-      <View className="flex-row items-center gap-2">
+      <View className="flex-row items-center gap-4">
         <TouchableOpacity
           onPress={onRefresh}
           activeOpacity={0.7}
