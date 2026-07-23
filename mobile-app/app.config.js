@@ -59,7 +59,8 @@ export default {
         {
           android: {
             enableSeparateBuildPerCPUArchitecture: true,
-            enableProguardInReleaseBuilds: true
+            enableProguardInReleaseBuilds: true,
+            enableShrinkResourcesInReleaseBuilds: true
           }
         }
       ]
