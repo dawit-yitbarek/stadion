@@ -2,8 +2,8 @@
 const IS_DEV = process.env.EAS_BUILD_PROFILE === 'development';
 const IS_PREVIEW = process.env.EAS_BUILD_PROFILE === 'preview';
 
-let appName = "433 Sport";
-let packageName = "com.anonymous.footballstreamapp"; // base production package name
+let appName = "Stadion";
+let packageName = "com.stadion.app"; // base production package name
 
 // Dynamically change names based on the build type
 if (IS_DEV) {
@@ -18,11 +18,11 @@ if (IS_DEV) {
 export default {
   expo: {
     name: appName,
-    slug: "football-stream-app",
+    slug: "stadion",
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
-    scheme: "footballstreamapp",
+    scheme: "stadion",
     userInterfaceStyle: "dark",
     ios: {
       supportsTablet: true,
@@ -30,9 +30,8 @@ export default {
     },
     android: {
       adaptiveIcon: {
-        backgroundColor: "#0B0C10",
+        backgroundColor: "#000000",
         foregroundImage: "./assets/images/android-icon-foreground.png",
-        backgroundImage: "./assets/images/android-icon-background.png"
       },
       predictiveBackGestureEnabled: false,
       package: packageName
@@ -51,7 +50,7 @@ export default {
         {
           image: "./assets/images/splash-icon.png",
           resizeMode: "contain",
-          backgroundColor: "#0B0C10"
+          backgroundColor: "#000000"
         }
       ],
       [

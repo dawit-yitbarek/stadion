@@ -9,6 +9,11 @@ interface StreamServer {
 
 export async function verifyStreamChannel(serverList: StreamServer[]): Promise<StreamServer[]> {
 
+    // Safety check: ensure serverList is a valid array and has content
+    if (!Array.isArray(serverList) || serverList.length === 0) {
+        return [];
+    }
+
     const checkPromises = serverList.map(async (server) => {
         try {
             if (server.type === "drm") {
@@ -38,5 +43,5 @@ export async function verifyStreamChannel(serverList: StreamServer[]): Promise<S
     // all checks simultaneously in parallel
     const results = await Promise.all(checkPromises);
 
-    return results.filter((server): server is StreamServer => server !== null);
+    return results.filter((server) => server !== null);
 }

@@ -105,7 +105,7 @@ export function setLiveStatus(matchTime: number): ("live" | "vs") {
   const currentTimeMs = Date.now();
 
   // If a match started less than 2.5 hours ago, flag it as live
-  const MATCH_WINDOW_MS = 2.5 * 60 * 60 * 1000;
+  const MATCH_WINDOW_MS = 2 * 60 * 60 * 1000;
 
   if (currentTimeMs >= matchTimeMs && currentTimeMs <= (matchTimeMs + MATCH_WINDOW_MS)) {
     return 'live';

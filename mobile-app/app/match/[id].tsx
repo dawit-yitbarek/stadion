@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, BackHandler, ScrollView, TouchableOpacity } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { VideoRef } from 'react-native-video';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useMatches } from '@/context/MatchesContext';
@@ -82,10 +82,21 @@ export default function LiveMatchStreamScreen() {
     );
   }
 
-  const servers = match.servers.map((server, index) => ({
-    ...server,
-    name: `Channel ${index + 1}`
-  }));
+  // Randomize servers once when this screen mounts for this user session
+  const randomizedServers = useMemo(() => {
+    const serversCopy = [...match.servers];
+
+    // randomize the order of servers using Fisher-Yates shuffle algorithm
+    for (let i = serversCopy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [serversCopy[i], serversCopy[j]] = [serversCopy[j], serversCopy[i]];
+    }
+
+    return serversCopy.map((server, index) => ({
+      ...server,
+      name: `Channel ${index + 1}`
+    }));
+  }, [match?.id]);
 
   const videoRef = useRef<VideoRef>(null);
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -148,13 +159,13 @@ export default function LiveMatchStreamScreen() {
   }, [router])
 
   useEffect(() => {
-    if (servers && servers.length > 0) {
+    if (randomizedServers && randomizedServers.length > 0) {
       startControlsTimeout();
     }
     return () => {
       if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
     };
-  }, [servers]);
+  }, [randomizedServers]);
 
   useEffect(() => {
     const backAction = () => {
@@ -170,7 +181,20 @@ export default function LiveMatchStreamScreen() {
     return () => backHandler.remove();
   }, [isFullscreen]);
 
-  const activeServer = servers[activeServerIndex];
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setIsPaused(true);
+
+        if (controlsTimeoutRef.current) {
+          clearTimeout(controlsTimeoutRef.current);
+          controlsTimeoutRef.current = null;
+        }
+      };
+    }, [])
+  );
+
+  const activeServer = randomizedServers[activeServerIndex];
 
   return (
     <View className="flex-1 bg-black">
@@ -198,7 +222,7 @@ export default function LiveMatchStreamScreen() {
 
       {!isFullscreen && (
         <ChannelSelector
-          servers={servers}
+          servers={randomizedServers}
           activeServerIndex={activeServerIndex}
           onServerChange={handleServerChange}
         />

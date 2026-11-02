@@ -1,4 +1,4 @@
-# 433 Football Stream
+# Stadion Football Stream
 
 A full-stack football streaming discovery project with a Node.js backend proxy/cache service and an Expo React Native mobile app.
 

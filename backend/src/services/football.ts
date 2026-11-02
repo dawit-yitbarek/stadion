@@ -3,20 +3,8 @@ import crypto from 'crypto';
 import logger from '../config/logger.js';
 import { apiRotator } from './apiRotator.js';
 import { verifyStreamChannel } from '../utils/verifyStreamChannel.js';
+import { LEAGUE_GROUPS } from '../config/constants.js';
 
-const ALLOWED_LEAGUES = [
-    'Premier League',
-    'LaLiga',
-    'Serie A',
-    'Bundesliga',
-    'UEFA Champions League',
-    'International Friendly',
-    'International Club Friendly',
-    'Fifa World Cup',
-    'UEFA Champions League Qualifiers',
-    'UEFA Europa Conference League',
-    'UEFA Europa League'
-].map(league => league.toLowerCase());
 
 export interface ApiMatch {
     id?: string;
@@ -46,6 +34,30 @@ interface ApiResponseData {
 }
 
 class FootballService {
+    public getLeagueName = (apiLeagueName: string): string => {
+        const lower = apiLeagueName.trim().toLowerCase();
+        for (const [leagueName, variants] of Object.entries(LEAGUE_GROUPS)) {
+            if (variants.some(v => lower === v.trim().toLowerCase())) {
+                return leagueName;
+            }
+        }
+        return apiLeagueName;
+    };
+
+    public isSameTeam = (team1: string, team2: string): boolean => {
+        const n1 = team1.trim().toLowerCase();
+        const n2 = team2.trim().toLowerCase();
+        return n1.includes(n2) || n2.includes(n1);
+    };
+
+    private getBestTeamName = (name1: string, name2: string): string => {
+        if (name1 <= name2) {
+            return name1;
+        } else {
+            return name2;
+        }
+    };
+
     public generateMatchId(homeTeam: string, awayTeam: string, timestamp: number): string {
         const uniqueString = `${homeTeam.trim().toLowerCase()}_vs_${awayTeam.trim().toLowerCase()}_${timestamp}`;
         return crypto.createHash('md5').update(uniqueString).digest('hex');
@@ -116,70 +128,57 @@ class FootballService {
                 }
             }
 
-            // Filter down to targeted leagues
-            const allowedMatches = allMatches.filter((match) =>
-                ALLOWED_LEAGUES.includes(match.league_name.toLowerCase())
-            );
+            // 1. Normalize and filter matches into league groups
+            const normalizedApiMatches = allMatches
+                .filter(match => {
+                    const leagueName = this.getLeagueName(match.league_name);
+                    return Object.keys(LEAGUE_GROUPS).includes(leagueName);
+                })
+                .map(match => ({
+                    ...match,
+                    league_name: this.getLeagueName(match.league_name)
+                }));
 
-            const filteredMatches: ApiMatch[] = allowedMatches.map((match) => ({
-                ...match,
-                id: this.generateMatchId(match.home_team_name, match.away_team_name, match.match_time)
-            }));
-
-            // Filter out matches without server arrays
-            const matchesWithServers = filteredMatches.filter(match => match.servers && match.servers.length > 0);
-            const matchesWithValidServers: ApiMatch[] = [];
-            const matchesWithNoValidServers: ApiMatch[] = [];
-
-            for (const match of matchesWithServers) {
-                const verifiedServers = await verifyStreamChannel(match.servers);
-
-                if (verifiedServers.length > 0) {
-                    matchesWithValidServers.push({
-                        ...match,
-                        servers: verifiedServers
-                    });
-                } else {
-                    matchesWithNoValidServers.push({
-                        ...match,
-                        servers: []
-                    });
-                }
+            // 2. Verify stream servers for fetched matches
+            const verifiedFetchedMatches: ApiMatch[] = [];
+            for (const match of normalizedApiMatches) {
+                const verifiedServers = await verifyStreamChannel(match?.servers);
+                verifiedFetchedMatches.push({
+                    ...match,
+                    servers: verifiedServers // empty array if none verified
+                });
             }
 
-            // Retrieve current Redis cache
+            // 3. Retrieve current Redis cache and prune expired games (older than 2.5 hours)
             const existingCacheRaw = await redisClient.get('matches:today');
             const existingMatches: ApiMatch[] = existingCacheRaw ? JSON.parse(existingCacheRaw) : [];
 
-            // Purge matches older than 2.5 hours
             const currentTimeSeconds = Math.floor(Date.now() / 1000);
-            const EXPIRATION_WINDOW_SECONDS = 2.5 * 60 * 60;
+            const EXPIRATION_WINDOW_SECONDS = 2 * 60 * 60;
 
             const activeCachedMatches = existingMatches.filter((match) => {
                 const matchEndTime = Number(match.match_time) + EXPIRATION_WINDOW_SECONDS;
                 return matchEndTime >= currentTimeSeconds;
             });
 
-            // Merge freshly verified matches with active cached matches
-            const matchMap = new Map<string, ApiMatch>();
+            // 4. Master List Merge & Deduplication
+            const masterMatchList: ApiMatch[] = [...activeCachedMatches];
 
-            // Seed map with existing cached matches
-            for (const match of activeCachedMatches) {
-                if (match.id) {
-                    matchMap.set(match.id, match);
-                }
-            }
+            for (const freshMatch of verifiedFetchedMatches) {
+                // Check if this incoming match already exists in our master list using isSameTeam
+                const existingIndex = masterMatchList.findIndex(item =>
+                    item.league_name === freshMatch.league_name &&
+                    (
+                        this.isSameTeam(item.home_team_name, freshMatch.home_team_name)
+                        ||
+                        this.isSameTeam(item.away_team_name, freshMatch.away_team_name)
+                    )
+                );
+                const cachedMatch = masterMatchList[existingIndex];
 
-
-            // Merge freshly fetched matches
-            for (const freshMatch of matchesWithValidServers) {
-                if (!freshMatch.id) continue;
-
-                if (matchMap.has(freshMatch.id)) {
-                    const existingMatch = matchMap.get(freshMatch.id)!;
-
-                    // De-duplicate servers by URL
-                    const mergedServers = [...existingMatch.servers];
+                if (cachedMatch) {
+                    // Merge servers (de-duplicate by URL)
+                    const mergedServers = [...cachedMatch.servers];
                     for (const freshServer of freshMatch.servers) {
                         const exists = mergedServers.some(s => s.url === freshServer.url);
                         if (!exists) {
@@ -187,30 +186,48 @@ class FootballService {
                         }
                     }
 
-                    matchMap.set(freshMatch.id, {
-                        ...freshMatch, // Updates team scores and metadata
-                        servers: mergedServers // Retains verified existing servers + new ones
-                    });
+                    // Keep cleaner team name strings , update scores/servers, retain old ID
+                    masterMatchList[existingIndex] = {
+                        ...freshMatch,
+                        id: cachedMatch.id ?? this.generateMatchId(freshMatch.home_team_name, freshMatch.away_team_name, freshMatch.match_time), // Retain stable cached ID
+                        home_team_name: this.getBestTeamName(freshMatch.home_team_name, cachedMatch.home_team_name),
+                        away_team_name: this.getBestTeamName(freshMatch.away_team_name, cachedMatch.away_team_name),
+                        servers: mergedServers
+                    };
                 } else {
-                    // New match entry
-                    matchMap.set(freshMatch.id, freshMatch);
+                    // Brand new match: Generate a stable ID for it
+                    const newId = this.generateMatchId(freshMatch.home_team_name, freshMatch.away_team_name, freshMatch.match_time);
+                    masterMatchList.push({
+                        ...freshMatch,
+                        id: newId
+                    });
                 }
             }
 
-            const mergedMatchesList = Array.from(matchMap.values());
+            // 5. Optimized Sort using a Lookup Map
+            const leagueOrder = Object.keys(LEAGUE_GROUPS);
+            const leagueRankMap = new Map(leagueOrder.map((league, index) => [league, index]));
 
-            // Persist updated dataset back to Redis
+            masterMatchList.sort((a, b) => {
+                const rankA = leagueRankMap.has(a.league_name) ? leagueRankMap.get(a.league_name)! : leagueOrder.length;
+                const rankB = leagueRankMap.has(b.league_name) ? leagueRankMap.get(b.league_name)! : leagueOrder.length;
+
+                return rankA - rankB;
+            });
+
+            // 6. Persist master list back to Redis
             await redisClient.set(
                 'matches:today',
-                JSON.stringify(mergedMatchesList),
+                JSON.stringify(masterMatchList),
                 { EX: 86400 }
             );
 
-            logger.info(`⚡ Merge Sync Complete: Saved ${mergedMatchesList.length} active matches to Redis.`);
-            return mergedMatchesList;
+            logger.info(`⚡ Merge Sync & Deduplication Complete: Saved ${masterMatchList.length} unique matches to Redis.`);
+            return masterMatchList;
+
         } catch (error: any) {
             logger.error(`❌ Error during syncMatchesCache routine: ${error.message || error}`);
-            const existingCache = await redisClient.get('matches:today');
+            const existingCache = await redisClient.get('matches:today').catch(() => null);
             return existingCache ? JSON.parse(existingCache) : [];
         }
     }

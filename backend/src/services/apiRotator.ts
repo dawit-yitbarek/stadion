@@ -48,13 +48,14 @@ class ApiRotatorService {
   // Temporarily bans an API key in Redis until midnight UTC
   public async blacklistKey(key: string): Promise<void> {
     try {
+      if (!key) return;
       const redisKey = `api:blacklist:${key}`;
       const now = new Date();
       const midnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0));
       const secondsUntilMidnight = Math.max(60, Math.floor((midnight.getTime() - now.getTime()) / 1000));
 
       // Flag the key in Redis with an auto-expiry
-      await redisClient.set(redisKey, 'exhausted', { EX: secondsUntilMidnight });
+      await redisClient.set(redisKey, 'exhausted', { expiration: { type: 'EX', value: secondsUntilMidnight } });
       logger.warn(`🚫 Key successfully blacklisted for ${Math.ceil(secondsUntilMidnight / 60)} minutes (until midnight UTC).`);
     } catch (error: any) {
       logger.error(`Failed to execute blacklist operation: ${error.message || error}`);
