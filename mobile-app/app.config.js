@@ -18,7 +18,7 @@ if (IS_DEV) {
 export default {
   expo: {
     name: appName,
-    slug: "stadion",
+    slug: "football-stream-app",
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
