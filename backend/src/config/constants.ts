@@ -5,6 +5,7 @@ export const LEAGUE_GROUPS: Record<string, string[]> = {
     'Bundesliga': ['Germany Bundesliga 1', 'Bundesliga'],
     'Ligue 1': ['France Ligue 1', 'Ligue 1 France', 'Ligue 1', 'FRA D1'],
     'Champions League': ['champions league', 'uefa champions league'],
+    'Europa League': ['Europa League', 'UEFA Europa League'],
     'EFL Cup': ['Cúp Carabao Anh', 'England League Cup'],
     'Copa del Rey': ['Copa del Rey', 'Cúp Nhà vua Tây Ban Nha'],
     'DFB Pokal': ['Cúp Liên đoàn bóng đá Đức', 'German DFB Pokal'],
