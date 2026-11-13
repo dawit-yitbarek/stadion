@@ -10,7 +10,8 @@ export const LEAGUE_GROUPS: Record<string, string[]> = {
     'EFL Cup': ['Cúp Carabao Anh', 'England League Cup'],
     'Copa del Rey': ['Copa del Rey', 'Cúp Nhà vua Tây Ban Nha'],
     'DFB Pokal': ['Cúp Liên đoàn bóng đá Đức', 'German DFB Pokal'],
-    'International Friendly': ['international friendly'],
-    'International Club Friendly': ['international club friendly'],
+    'UEFA Nations League': ['UEFA Nations League', 'UEFA Nations League A', 'UEFA Nations League B', 'UEFA Nations League C', 'UEFA Nations League D', 'Giải vô địch bóng đá các quốc gia châu Âu'],
+    // 'International Friendly': ['international friendly'],
+    // 'International Club Friendly': ['international club friendly'],
     'World Cup': ['world cup']
 };
