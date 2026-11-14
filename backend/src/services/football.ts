@@ -58,6 +58,31 @@ class FootballService {
         }
     };
 
+    private getActiveMatches = (cachedMatches: string | null): ApiMatch[] => {
+        if (!cachedMatches) return [];
+
+        try {
+            const matches: unknown = JSON.parse(cachedMatches);
+
+            if (!Array.isArray(matches)) return [];
+
+            const currentTimeSeconds = Math.floor(Date.now() / 1000);
+            const EXPIRATION_WINDOW_SECONDS = 2 * 60 * 60;
+
+            return matches.filter((match: ApiMatch) => {
+                const matchTime = Number(match.match_time);
+
+                if (!Number.isFinite(matchTime)) return false;
+
+                return matchTime + EXPIRATION_WINDOW_SECONDS >= currentTimeSeconds;
+            });
+
+        } catch (error: any) {
+            logger.error(`Failed to parse cached matches: ${error?.message || error}`);
+            return [];
+        }
+    };
+
     public generateMatchId(homeTeam: string, awayTeam: string, timestamp: number): string {
         const uniqueString = `${homeTeam.trim().toLowerCase()}_vs_${awayTeam.trim().toLowerCase()}_${timestamp}`;
         return crypto.createHash('md5').update(uniqueString).digest('hex');
@@ -69,7 +94,7 @@ class FootballService {
             if (!activeKey) {
                 logger.error("🛑 Sync aborted: No available keys remaining.");
                 const existingCache = await redisClient.get('matches:today');
-                return existingCache ? JSON.parse(existingCache) : [];
+                return this.getActiveMatches(existingCache);
             }
 
             const today = new Date();
@@ -149,17 +174,9 @@ class FootballService {
                 });
             }
 
-            // 3. Retrieve current Redis cache and prune expired games (older than 2.5 hours)
+            // 3. Retrieve current Redis cache and prune expired games (older than 2 hours)
             const existingCacheRaw = await redisClient.get('matches:today');
-            const existingMatches: ApiMatch[] = existingCacheRaw ? JSON.parse(existingCacheRaw) : [];
-
-            const currentTimeSeconds = Math.floor(Date.now() / 1000);
-            const EXPIRATION_WINDOW_SECONDS = 2 * 60 * 60;
-
-            const activeCachedMatches = existingMatches.filter((match) => {
-                const matchEndTime = Number(match.match_time) + EXPIRATION_WINDOW_SECONDS;
-                return matchEndTime >= currentTimeSeconds;
-            });
+            const activeCachedMatches = this.getActiveMatches(existingCacheRaw);
 
             // 4. Master List Merge & Deduplication
             const masterMatchList: ApiMatch[] = [...activeCachedMatches];
@@ -228,7 +245,7 @@ class FootballService {
         } catch (error: any) {
             logger.error(`❌ Error during syncMatchesCache routine: ${error.message || error}`);
             const existingCache = await redisClient.get('matches:today').catch(() => null);
-            return existingCache ? JSON.parse(existingCache) : [];
+            return this.getActiveMatches(existingCache);
         }
     }
 }
