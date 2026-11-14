@@ -94,7 +94,13 @@ class FootballService {
             if (!activeKey) {
                 logger.error("🛑 Sync aborted: No available keys remaining.");
                 const existingCache = await redisClient.get('matches:today');
-                return this.getActiveMatches(existingCache);
+                const activeMatches = this.getActiveMatches(existingCache);
+                await redisClient.set(
+                    'matches:today',
+                    JSON.stringify(activeMatches),
+                    { expiration: { type: "EX", value: 86400 } }
+                );
+                return activeMatches;
             }
 
             const today = new Date();
@@ -236,7 +242,7 @@ class FootballService {
             await redisClient.set(
                 'matches:today',
                 JSON.stringify(masterMatchList),
-                { EX: 86400 }
+                { expiration: { type: "EX", value: 86400 } }
             );
 
             logger.info(`⚡ Merge Sync & Deduplication Complete: Saved ${masterMatchList.length} unique matches to Redis.`);
